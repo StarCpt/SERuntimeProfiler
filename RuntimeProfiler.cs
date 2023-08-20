@@ -24,45 +24,91 @@ namespace IngameScript
     {
         public class RuntimeProfiler
         {
-            private readonly Program Program;
+            private readonly Program program;
 
-            public double AverageRuntimeMs => RuntimeCollection.Average();
+            public double RunningAverageMs => runningAverage;
+            private double AverageRuntimeMs
+            {
+                get
+                {
+                    double sum = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        sum += runtimeCollection[i];
+                    }
+                    return (sum / BufferSize);
+                }
+            }
             /// <summary>Use <see cref="MaxRuntimeMsFast">MaxRuntimeMsFast</see> if performance is a major concern</summary>
-            public double MaxRuntimeMs => RuntimeCollection.Max();
+            public double MaxRuntimeMs
+            {
+                get
+                {
+                    double max = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        if (runtimeCollection[i] > max)
+                        {
+                            max = runtimeCollection[i];
+                        }
+                    }
+                    return max;
+                }
+            }
             public double MaxRuntimeMsFast { get; private set; }
-            public double MinRuntimeMs => RuntimeCollection.Min();
+            public double MinRuntimeMs
+            {
+                get
+                {
+                    double min = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        if (runtimeCollection[i] < min)
+                        {
+                            min = runtimeCollection[i];
+                        }
+                    }
+                    return min;
+                }
+            }
 
-            private readonly double[] RuntimeCollection;
-            private int Counter = 0;
-            private readonly int BufferSize;
+            private readonly double[] runtimeCollection;
+            private double runningAverage;
+            private int counter = 0;
+            public readonly int BufferSize;
 
             /// <summary></summary>
-            /// <param name="Program"></param>
+            /// <param name="Program">The Program instance of this script.</param>
             /// <param name="BufferSize">Runtime buffer size. Must be 1 or higher.</param>
-            public RuntimeProfiler(Program Program, int BufferSize = 300)
+            public Profiler(Program Program, int BufferSize = 300)
             {
-                this.Program = Program;
+                this.program = Program;
                 this.MaxRuntimeMsFast = Program.Runtime.LastRunTimeMs;
                 this.BufferSize = MathHelper.Clamp(BufferSize, 1, int.MaxValue);
-                this.RuntimeCollection = new double[BufferSize];
-                this.RuntimeCollection[Counter] = Program.Runtime.LastRunTimeMs;
+                this.runtimeCollection = new double[this.BufferSize];
+                this.runtimeCollection[counter] = Program.Runtime.LastRunTimeMs;
+                this.counter++;
             }
-            
+
             public void Run()
             {
-                RuntimeCollection[Counter] = Program.Runtime.LastRunTimeMs;
+                runningAverage -= runtimeCollection[counter] / BufferSize;
+                runningAverage += program.Runtime.LastRunTimeMs / BufferSize;
 
-                if (Program.Runtime.LastRunTimeMs > MaxRuntimeMsFast)
+                runtimeCollection[counter] = program.Runtime.LastRunTimeMs;
+
+                if (program.Runtime.LastRunTimeMs > MaxRuntimeMsFast)
                 {
-                    MaxRuntimeMsFast = Program.Runtime.LastRunTimeMs;
+                    MaxRuntimeMsFast = program.Runtime.LastRunTimeMs;
                 }
 
-                Counter++;
+                counter++;
 
-                if (Counter >= BufferSize)
+                if (counter >= BufferSize)
                 {
-                    Counter = 0;
-                    MaxRuntimeMsFast = Program.Runtime.LastRunTimeMs;
+                    counter = 0;
+                    runningAverage = AverageRuntimeMs;
+                    MaxRuntimeMsFast = program.Runtime.LastRunTimeMs;
                 }
             }
         }
